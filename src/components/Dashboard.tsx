@@ -5,7 +5,8 @@ import { useSession, signOut } from "next-auth/react"
 import { Sidebar } from "@/components/Sidebar"
 import { FolderView } from "@/components/FolderView"
 import { Button } from "@/components/ui/button"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, Key } from "lucide-react"
+import Link from "next/link"
 
 interface Folder {
   _id: string
@@ -122,6 +123,12 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Replay Portal</h1>
           <div className="flex items-center space-x-4">
+            <Link href="/dashboard/tokens">
+              <Button variant="outline" size="sm">
+                <Key className="w-4 h-4 mr-2" />
+                CLI Tokens
+              </Button>
+            </Link>
             <div className="flex items-center space-x-2">
               {session?.user?.image ? (
                 <img
