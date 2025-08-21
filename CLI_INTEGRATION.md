@@ -95,6 +95,39 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
+### 5. Get Mnemonic by Name - `GET /api/mnemonics/{name}`
+
+**Authentication:** Bearer token
+
+**Headers:**
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "data": {
+    "name": "deploy-prod",
+    "commands": [
+      "npm run build",
+      "docker build -t myapp .",
+      "docker push myapp:latest",
+      "kubectl apply -f deployment.yaml"
+    ]
+  }
+}
+```
+
+**Response (Not Found):**
+```json
+{
+  "success": false,
+  "error": "Mnemonic not found"
+}
+```
+
 ## CLI Integration Steps
 
 ### 1. User Workflow
@@ -229,6 +262,54 @@ export async function authLogout() {
 For commands that require authentication:
 
 ```typescript
+// Get and execute a mnemonic
+export async function runMnemonic(mnemonicName: string) {
+  try {
+    await verifyAuth() // Ensure we're authenticated
+    
+    const response = await axios.get(`${API_BASE_URL}/api/mnemonics/${encodeURIComponent(mnemonicName)}`, {
+      headers: {
+        'Authorization': `Bearer ${loadToken()}`
+      }
+    })
+
+    if (response.data.success) {
+      const { name, commands } = response.data.data
+      console.log(`\n🚀 Running mnemonic: ${name}`)
+      console.log('📝 Commands:')
+      
+      for (let i = 0; i < commands.length; i++) {
+        const command = commands[i]
+        console.log(`\n${i + 1}. ${command}`)
+        
+        // Execute command using child_process
+        const { execSync } = require('child_process')
+        try {
+          execSync(command, { stdio: 'inherit' })
+        } catch (error) {
+          console.error(`❌ Command failed: ${command}`)
+          throw error
+        }
+      }
+      
+      console.log('\n✅ All commands completed successfully!')
+    } else {
+      console.error(`❌ Mnemonic '${mnemonicName}' not found`)
+      process.exit(1)
+    }
+  } catch (error) {
+    if (error.response?.status === 404) {
+      console.error(`❌ Mnemonic '${mnemonicName}' not found`)
+    } else if (error.response?.status === 401) {
+      console.error('❌ Authentication failed. Please login again.')
+      console.log('Run: relayed auth login <token>')
+    } else {
+      console.error('❌ Error:', error.message)
+    }
+    process.exit(1)
+  }
+}
+
 export async function syncCommand() {
   try {
     const user = await verifyAuth()
@@ -273,8 +354,12 @@ Test the integration:
 4. Test the CLI authentication with curl:
 
 ```bash
+# Test authentication
 curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:3000/api/me
+
+# Test mnemonic retrieval
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:3000/api/mnemonics/deploy-prod
 ```
 
-This should return your user information if the token is valid.
+The first command should return your user information, and the second should return the mnemonic data if it exists.
 
