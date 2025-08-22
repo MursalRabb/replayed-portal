@@ -7,6 +7,7 @@ import { FolderView } from "@/components/FolderView"
 import { Button } from "@/components/ui/button"
 import { LogOut, User, Key } from "lucide-react"
 import Link from "next/link"
+import { type Command } from "@/lib/migrationHelpers"
 
 interface Folder {
   _id: string
@@ -16,11 +17,12 @@ interface Folder {
   updatedAt: string
 }
 
+// Support both old and new mnemonic formats
 interface Mnemonic {
   _id: string
   folderId: string
   name: string
-  commands: string[]
+  commands: Command[] | string[] // Support both formats
   createdAt: string
   updatedAt: string
 }

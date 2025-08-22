@@ -4,7 +4,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MnemonicEditor } from "@/components/MnemonicEditor"
-import { Plus, Terminal, Edit2, Trash2 } from "lucide-react"
+import { Plus, Terminal, Edit2, Trash2, ArrowRight } from "lucide-react"
+import { migrateCommands, migrateMnemonic, type Command } from "@/lib/migrationHelpers"
 
 interface Folder {
   _id: string
@@ -14,11 +15,12 @@ interface Folder {
   updatedAt: string
 }
 
+// Support both old and new mnemonic formats
 interface Mnemonic {
   _id: string
   folderId: string
   name: string
-  commands: string[]
+  commands: Command[] | string[] // Support both formats
   createdAt: string
   updatedAt: string
 }
@@ -83,6 +85,11 @@ export function FolderView({
     setEditingMnemonic(null)
   }
 
+  const getTotalInputs = (commands: Command[] | string[]) => {
+    const migratedCommands = migrateCommands(commands)
+    return migratedCommands.reduce((total, cmd) => total + (cmd.inputs?.length || 0), 0)
+  }
+
   return (
     <div className="flex-1 p-6">
       {/* Header */}
@@ -118,48 +125,81 @@ export function FolderView({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mnemonics.map((mnemonic) => (
-            <Card key={mnemonic._id} className="group hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{mnemonic.name}</CardTitle>
-                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleEditMnemonic(mnemonic)}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeleteMnemonic(mnemonic)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+          {mnemonics.map((mnemonic) => {
+            // Migrate commands to new format for display
+            const migratedCommands = migrateCommands(mnemonic.commands)
+            const totalInputs = getTotalInputs(mnemonic.commands)
+            
+            return (
+              <Card key={mnemonic._id} className="group hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{mnemonic.name}</CardTitle>
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleEditMnemonic(mnemonic)}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteMnemonic(mnemonic)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <CardDescription>
-                  {mnemonic.commands.length} {mnemonic.commands.length === 1 ? "command" : "commands"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {mnemonic.commands.slice(0, 3).map((command, index) => (
-                    <div key={index} className="bg-gray-100 rounded p-2">
-                      <code className="text-sm text-gray-800">{command}</code>
-                    </div>
-                  ))}
-                  {mnemonic.commands.length > 3 && (
-                    <div className="text-sm text-gray-500 text-center py-2">
-                      +{mnemonic.commands.length - 3} more commands
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <CardDescription>
+                    {migratedCommands.length} {migratedCommands.length === 1 ? "command" : "commands"}
+                    {totalInputs > 0 && (
+                      <span className="ml-2 text-blue-600">
+                        • {totalInputs} saved {totalInputs === 1 ? "input" : "inputs"}
+                      </span>
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {migratedCommands.slice(0, 3).map((cmd, index) => (
+                      <div key={index} className="bg-gray-100 rounded p-3">
+                        <div className="flex items-start justify-between">
+                          <code className="text-sm text-gray-800 flex-1">{cmd.command}</code>
+                          {cmd.inputs && cmd.inputs.length > 0 && (
+                            <div className="ml-2 flex items-center text-xs text-blue-600">
+                              <ArrowRight className="w-3 h-3 mr-1" />
+                              {cmd.inputs.length} input{cmd.inputs.length !== 1 ? "s" : ""}
+                            </div>
+                          )}
+                        </div>
+                        {cmd.inputs && cmd.inputs.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {cmd.inputs.slice(0, 2).map((input, inputIndex) => (
+                              <div key={inputIndex} className="bg-blue-50 px-2 py-1 rounded text-xs">
+                                <span className="text-blue-600 font-mono">{input}</span>
+                              </div>
+                            ))}
+                            {cmd.inputs.length > 2 && (
+                              <div className="text-xs text-blue-500">
+                                +{cmd.inputs.length - 2} more input{cmd.inputs.length - 2 !== 1 ? "s" : ""}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {migratedCommands.length > 3 && (
+                      <div className="text-sm text-gray-500 text-center py-2">
+                        +{migratedCommands.length - 3} more commands
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
 

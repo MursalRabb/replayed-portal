@@ -1,8 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import connectMongoDB from '@/lib/mongodb'
-import Mnemonic from '@/models/Mnemonic'
+import Mnemonic, { ICommand } from '@/models/Mnemonic'
 import Folder from '@/models/Folder'
 import { requireAuth } from '@/lib/session'
+
+// Validation helper for command structure
+function validateCommands(commands: any): commands is ICommand[] {
+  if (!Array.isArray(commands)) {
+    return false
+  }
+
+  return commands.every(cmd => {
+    // Each command must be an object with a 'command' string
+    if (typeof cmd !== 'object' || cmd === null) {
+      return false
+    }
+    
+    if (typeof cmd.command !== 'string' || cmd.command.trim().length === 0) {
+      return false
+    }
+
+    // If inputs exist, they must be an array of strings
+    if (cmd.inputs !== undefined) {
+      if (!Array.isArray(cmd.inputs)) {
+        return false
+      }
+      if (!cmd.inputs.every((input: any) => typeof input === 'string')) {
+        return false
+      }
+    }
+
+    return true
+  })
+}
 
 // PUT /api/mnemonics/[id] - Update a mnemonic
 export async function PUT(
@@ -20,9 +50,9 @@ export async function PUT(
       )
     }
 
-    if (!Array.isArray(commands) || commands.some(cmd => typeof cmd !== 'string')) {
+    if (!validateCommands(commands)) {
       return NextResponse.json(
-        { success: false, error: 'Commands must be an array of strings' },
+        { success: false, error: 'Commands must be an array of objects with command (string) and optional inputs (string[])' },
         { status: 400 }
       )
     }
@@ -51,14 +81,46 @@ export async function PUT(
       )
     }
 
-    mnemonic.name = name.trim()
-    mnemonic.commands = commands.filter(cmd => cmd.trim().length > 0)
-    
-    const updatedMnemonic = await mnemonic.save()
+    // Filter out empty commands and clean up inputs
+    const cleanCommands = commands.filter(cmd => cmd.command.trim().length > 0).map(cmd => ({
+      command: cmd.command.trim(),
+      inputs: cmd.inputs || []
+    }))
+
+    // Use MongoDB native update to bypass Mongoose validation issues
+    const db = mnemonic.db
+    const result = await db.collection('mnemonics').updateOne(
+      { _id: mnemonic._id },
+      { 
+        $set: {
+          name: name.trim(),
+          commands: cleanCommands,
+          updatedAt: new Date()
+        }
+      }
+    )
+
+    if (result.matchedCount === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Mnemonic not found' },
+        { status: 404 }
+      )
+    }
+
+    // Fetch the updated document
+    const updatedMnemonic = await Mnemonic.findById(params.id)
 
     return NextResponse.json({ success: true, data: updatedMnemonic })
   } catch (error: any) {
     console.error('Error updating mnemonic:', error)
+    
+    // Handle validation errors more gracefully
+    if (error.name === 'ValidationError') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid mnemonic data format' },
+        { status: 400 }
+      )
+    }
     
     if (error.code === 11000) {
       return NextResponse.json(
@@ -69,7 +131,7 @@ export async function PUT(
 
     return NextResponse.json(
       { success: false, error: 'Failed to update mnemonic' },
-      { status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500 }
+      { status: 500 }
     )
   }
 }
@@ -112,7 +174,7 @@ export async function DELETE(
     console.error('Error deleting mnemonic:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to delete mnemonic' },
-      { status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500 }
+      { status: 500 }
     )
   }
 }

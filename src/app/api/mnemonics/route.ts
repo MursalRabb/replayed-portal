@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import connectMongoDB from '@/lib/mongodb'
-import Mnemonic from '@/models/Mnemonic'
+import Mnemonic, { ICommand } from '@/models/Mnemonic'
 import Folder from '@/models/Folder'
 import { requireAuth } from '@/lib/session'
 
@@ -46,6 +46,36 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Validation helper for command structure
+function validateCommands(commands: any): commands is ICommand[] {
+  if (!Array.isArray(commands)) {
+    return false
+  }
+
+  return commands.every(cmd => {
+    // Each command must be an object with a 'command' string
+    if (typeof cmd !== 'object' || cmd === null) {
+      return false
+    }
+    
+    if (typeof cmd.command !== 'string' || cmd.command.trim().length === 0) {
+      return false
+    }
+
+    // If inputs exist, they must be an array of strings
+    if (cmd.inputs !== undefined) {
+      if (!Array.isArray(cmd.inputs)) {
+        return false
+      }
+      if (!cmd.inputs.every((input: any) => typeof input === 'string')) {
+        return false
+      }
+    }
+
+    return true
+  })
+}
+
 // POST /api/mnemonics - Create a new mnemonic
 export async function POST(request: NextRequest) {
   try {
@@ -59,9 +89,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!Array.isArray(commands) || commands.some(cmd => typeof cmd !== 'string')) {
+    if (!validateCommands(commands)) {
       return NextResponse.json(
-        { success: false, error: 'Commands must be an array of strings' },
+        { success: false, error: 'Commands must be an array of objects with command (string) and optional inputs (string[])' },
         { status: 400 }
       )
     }
@@ -81,10 +111,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Filter out empty commands and clean up inputs
+    const cleanCommands = commands.filter(cmd => cmd.command.trim().length > 0).map(cmd => ({
+      command: cmd.command.trim(),
+      inputs: cmd.inputs || []
+    }))
+
     const mnemonic = new Mnemonic({
       folderId,
       name: name.trim(),
-      commands: commands.filter(cmd => cmd.trim().length > 0),
+      commands: cleanCommands,
     })
 
     const savedMnemonic = await mnemonic.save()
@@ -92,6 +128,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: savedMnemonic }, { status: 201 })
   } catch (error: any) {
     console.error('Error creating mnemonic:', error)
+    
+    // Handle validation errors more gracefully
+    if (error.name === 'ValidationError') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid mnemonic data format' },
+        { status: 400 }
+      )
+    }
     
     if (error.code === 11000) {
       return NextResponse.json(
