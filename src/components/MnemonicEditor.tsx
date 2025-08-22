@@ -232,7 +232,7 @@ export function MnemonicEditor({
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-medium text-gray-600">
-                        Saved Inputs (sent to stdin)
+                        Saved Inputs
                       </label>
                       <Button
                         type="button"
