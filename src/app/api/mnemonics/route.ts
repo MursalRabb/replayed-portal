@@ -3,11 +3,13 @@ import connectMongoDB from '@/lib/mongodb'
 import Mnemonic from '@/models/Mnemonic'
 import Folder from '@/models/Folder'
 import { requireAuth } from '@/lib/session'
+import { hybridAuth, handleHybridAuthError } from '@/lib/hybridAuth'
 import { MnemonicCommand, isValidInputStep } from '@/types/mnemonic'
 
 // GET /api/mnemonics?folderId=... - Get all mnemonics for a folder
 export async function GET(request: NextRequest) {
   try {
+    // Use session auth for GET requests (web portal only)
     const session = await requireAuth()
     const { searchParams } = new URL(request.url)
     const folderId = searchParams.get('folderId')
@@ -77,15 +79,21 @@ function validateMnemonicCommands(commands: any): commands is MnemonicCommand[] 
   })
 }
 
-// POST /api/mnemonics - Create a new mnemonic
+// POST /api/mnemonics - Create a new mnemonic (supports both web portal and CLI)
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth()
+    // Use hybrid authentication to support both web portal and CLI
+    const authResult = await hybridAuth(request)
+    
+    if (!authResult.success) {
+      return handleHybridAuthError(authResult)
+    }
+
     const { folderId, name, commands } = await request.json()
 
-    if (!folderId || !name || !commands) {
+    if (!name || !commands) {
       return NextResponse.json(
-        { success: false, error: 'Folder ID, name, and commands are required' },
+        { success: false, error: 'Name and commands are required' },
         { status: 400 }
       )
     }
@@ -99,16 +107,41 @@ export async function POST(request: NextRequest) {
 
     await connectMongoDB()
 
-    // Verify the folder belongs to the user
-    const folder = await Folder.findOne({ 
-      _id: folderId, 
-      userId: session.user?.email 
+    // Handle folder validation differently for web vs CLI
+    if (folderId) {
+      // Web portal: folder must exist and belong to user
+      const folder = await Folder.findOne({ 
+        _id: folderId, 
+        userId: authResult.user.email 
+      })
+
+      if (!folder) {
+        return NextResponse.json(
+          { success: false, error: 'Folder not found' },
+          { status: 404 }
+        )
+      }
+    } else {
+      // CLI: folderId is optional, can create mnemonics without folders
+      if (authResult.source === 'session') {
+        // For web portal, folderId is required
+        return NextResponse.json(
+          { success: false, error: 'Folder ID is required for web portal' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Check for duplicate mnemonic names for this user
+    const existingMnemonic = await Mnemonic.findOne({
+      userId: authResult.user.email,
+      name: name.trim()
     })
 
-    if (!folder) {
+    if (existingMnemonic) {
       return NextResponse.json(
-        { success: false, error: 'Folder not found' },
-        { status: 404 }
+        { success: false, error: 'Mnemonic name already exists' },
+        { status: 409 }
       )
     }
 
@@ -121,15 +154,20 @@ export async function POST(request: NextRequest) {
       }))
 
     const mnemonic = new Mnemonic({
-      userId: session.user?.email,
-      folderId,
+      userId: authResult.user.email,
+      folderId: folderId || null, // Allow null for CLI-created mnemonics
       name: name.trim(),
       commands: cleanCommands,
     })
 
     const savedMnemonic = await mnemonic.save()
 
-    return NextResponse.json({ success: true, data: savedMnemonic }, { status: 201 })
+    return NextResponse.json({ 
+      success: true, 
+      data: savedMnemonic,
+      source: authResult.source // Indicate which auth method was used
+    }, { status: 201 })
+
   } catch (error: any) {
     console.error('Error creating mnemonic:', error)
     

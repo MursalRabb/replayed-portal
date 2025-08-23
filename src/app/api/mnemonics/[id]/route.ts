@@ -3,6 +3,7 @@ import connectMongoDB from '@/lib/mongodb'
 import Mnemonic from '@/models/Mnemonic'
 import Folder from '@/models/Folder'
 import { requireAuth } from '@/lib/session'
+import { hybridAuth, handleHybridAuthError } from '@/lib/hybridAuth'
 import { MnemonicCommand, isValidInputStep } from '@/types/mnemonic'
 
 // Validation helper for MnemonicCommand structure
@@ -35,13 +36,19 @@ function validateMnemonicCommands(commands: any): commands is MnemonicCommand[] 
   })
 }
 
-// PUT /api/mnemonics/[id] - Update a mnemonic
+// PUT /api/mnemonics/[id] - Update a mnemonic (supports both web portal and CLI)
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth()
+    // Use hybrid authentication to support both web portal and CLI
+    const authResult = await hybridAuth(request)
+    
+    if (!authResult.success) {
+      return handleHybridAuthError(authResult)
+    }
+
     const { name, commands } = await request.json()
 
     if (!name || !commands) {
@@ -69,17 +76,27 @@ export async function PUT(
       )
     }
 
-    // Verify the mnemonic belongs to the user through the folder
-    const folder = await Folder.findOne({ 
-      _id: mnemonic.folderId, 
-      userId: session.user?.email 
-    })
-
-    if (!folder) {
+    // Verify the mnemonic belongs to the user
+    if (mnemonic.userId !== authResult.user.email) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
       )
+    }
+
+    // For web portal users, verify folder ownership if mnemonic has a folder
+    if (authResult.source === 'session' && mnemonic.folderId) {
+      const folder = await Folder.findOne({ 
+        _id: mnemonic.folderId, 
+        userId: authResult.user.email 
+      })
+
+      if (!folder) {
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized' },
+          { status: 403 }
+        )
+      }
     }
 
     // Filter out empty commands and normalize the data
@@ -113,7 +130,12 @@ export async function PUT(
     // Fetch the updated document
     const updatedMnemonic = await Mnemonic.findById(params.id)
 
-    return NextResponse.json({ success: true, data: updatedMnemonic })
+    return NextResponse.json({ 
+      success: true, 
+      data: updatedMnemonic,
+      source: authResult.source // Indicate which auth method was used
+    })
+
   } catch (error: any) {
     console.error('Error updating mnemonic:', error)
     
@@ -140,13 +162,19 @@ export async function PUT(
   }
 }
 
-// DELETE /api/mnemonics/[id] - Delete a mnemonic
+// DELETE /api/mnemonics/[id] - Delete a mnemonic (supports both web portal and CLI)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth()
+    // Use hybrid authentication to support both web portal and CLI
+    const authResult = await hybridAuth(request)
+    
+    if (!authResult.success) {
+      return handleHybridAuthError(authResult)
+    }
+
     await connectMongoDB()
 
     const mnemonic = await Mnemonic.findById(params.id)
@@ -158,22 +186,37 @@ export async function DELETE(
       )
     }
 
-    // Verify the mnemonic belongs to the user through the folder
-    const folder = await Folder.findOne({ 
-      _id: mnemonic.folderId, 
-      userId: session.user?.email 
-    })
-
-    if (!folder) {
+    // Verify the mnemonic belongs to the user
+    if (mnemonic.userId !== authResult.user.email) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
       )
     }
 
+    // For web portal users, verify folder ownership if mnemonic has a folder
+    if (authResult.source === 'session' && mnemonic.folderId) {
+      const folder = await Folder.findOne({ 
+        _id: mnemonic.folderId, 
+        userId: authResult.user.email 
+      })
+
+      if (!folder) {
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized' },
+          { status: 403 }
+        )
+      }
+    }
+
     await Mnemonic.deleteOne({ _id: params.id })
 
-    return NextResponse.json({ success: true, message: 'Mnemonic deleted successfully' })
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Mnemonic deleted successfully',
+      source: authResult.source
+    })
+
   } catch (error) {
     console.error('Error deleting mnemonic:', error)
     return NextResponse.json(
