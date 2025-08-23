@@ -4,6 +4,13 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -11,8 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, X, Terminal } from "lucide-react"
-import { migrateCommands, type Command } from "@/lib/migrationHelpers"
+import { Plus, X, Terminal, Type, CornerDownLeft, Keyboard } from "lucide-react"
+import { InputStep, MnemonicCommand, INPUT_TYPE_OPTIONS, KEY_OPTIONS } from "@/types/mnemonic"
 
 interface Folder {
   _id: string
@@ -22,12 +29,12 @@ interface Folder {
   updatedAt: string
 }
 
-// Support both old and new mnemonic formats
 interface Mnemonic {
   _id: string
-  folderId: string
+  userId: string
+  folderId?: string | null
   name: string
-  commands: Command[] | string[] // Support both formats
+  commands: MnemonicCommand[]
   createdAt: string
   updatedAt: string
 }
@@ -48,15 +55,13 @@ export function MnemonicEditor({
   onSave,
 }: MnemonicEditorProps) {
   const [name, setName] = useState("")
-  const [commands, setCommands] = useState<Command[]>([{ command: "", inputs: [] }])
+  const [commands, setCommands] = useState<MnemonicCommand[]>([{ command: "", inputs: [] }])
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     if (mnemonic) {
       setName(mnemonic.name)
-      // Migrate commands from old format to new format if needed
-      const migratedCommands = migrateCommands(mnemonic.commands)
-      setCommands(migratedCommands.length > 0 ? migratedCommands : [{ command: "", inputs: [] }])
+      setCommands(mnemonic.commands.length > 0 ? mnemonic.commands : [{ command: "", inputs: [] }])
     } else {
       setName("")
       setCommands([{ command: "", inputs: [] }])
@@ -81,10 +86,7 @@ export function MnemonicEditor({
 
   const handleAddInput = (commandIndex: number) => {
     const newCommands = [...commands]
-    if (!newCommands[commandIndex].inputs) {
-      newCommands[commandIndex].inputs = []
-    }
-    newCommands[commandIndex].inputs.push("")
+    newCommands[commandIndex].inputs.push({ type: "text", value: "" })
     setCommands(newCommands)
   }
 
@@ -94,10 +96,43 @@ export function MnemonicEditor({
     setCommands(newCommands)
   }
 
-  const handleInputChange = (commandIndex: number, inputIndex: number, value: string) => {
+  const handleInputStepChange = (commandIndex: number, inputIndex: number, step: InputStep) => {
     const newCommands = [...commands]
-    newCommands[commandIndex].inputs[inputIndex] = value
+    newCommands[commandIndex].inputs[inputIndex] = step
     setCommands(newCommands)
+  }
+
+  const handleInputTypeChange = (commandIndex: number, inputIndex: number, type: string) => {
+    const newCommands = [...commands]
+    const currentStep = newCommands[commandIndex].inputs[inputIndex]
+    
+    if (type === "text") {
+      newCommands[commandIndex].inputs[inputIndex] = { type: "text", value: currentStep.type === "text" ? currentStep.value : "" }
+    } else if (type === "enter") {
+      newCommands[commandIndex].inputs[inputIndex] = { type: "enter" }
+    } else if (type === "key") {
+      newCommands[commandIndex].inputs[inputIndex] = { type: "key", key: "up" }
+    }
+    
+    setCommands(newCommands)
+  }
+
+  const handleTextValueChange = (commandIndex: number, inputIndex: number, value: string) => {
+    const newCommands = [...commands]
+    const step = newCommands[commandIndex].inputs[inputIndex]
+    if (step.type === "text") {
+      newCommands[commandIndex].inputs[inputIndex] = { type: "text", value }
+      setCommands(newCommands)
+    }
+  }
+
+  const handleKeyValueChange = (commandIndex: number, inputIndex: number, key: string) => {
+    const newCommands = [...commands]
+    const step = newCommands[commandIndex].inputs[inputIndex]
+    if (step.type === "key") {
+      newCommands[commandIndex].inputs[inputIndex] = { type: "key", key: key as any }
+      setCommands(newCommands)
+    }
   }
 
   const handleSave = async () => {
@@ -149,17 +184,39 @@ export function MnemonicEditor({
     onClose()
   }
 
+  const getInputStepIcon = (step: InputStep) => {
+    switch (step.type) {
+      case "text":
+        return <Type className="w-3 h-3" />
+      case "enter":
+        return <CornerDownLeft className="w-3 h-3" />
+      case "key":
+        return <Keyboard className="w-3 h-3" />
+    }
+  }
+
+  const getInputStepDescription = (step: InputStep) => {
+    switch (step.type) {
+      case "text":
+        return `Type: "${step.value}"`
+      case "enter":
+        return "Press Enter"
+      case "key":
+        return `Press ${KEY_OPTIONS.find(k => k.value === step.key)?.label || step.key}`
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {mnemonic ? "Edit Mnemonic" : "Create New Mnemonic"}
           </DialogTitle>
           <DialogDescription>
             {mnemonic 
-              ? "Update the mnemonic name, commands, and their inputs."
-              : "Create a new command mnemonic with optional saved inputs for each command."
+              ? "Update the mnemonic name, commands, and their input steps."
+              : "Create a new command mnemonic with step-by-step inputs."
             }
           </DialogDescription>
         </DialogHeader>
@@ -182,7 +239,7 @@ export function MnemonicEditor({
           <div>
             <div className="flex items-center justify-between mb-4">
               <label className="block text-sm font-medium text-gray-700">
-                Commands & Inputs
+                Commands & Input Steps
               </label>
               <Button
                 type="button"
@@ -199,7 +256,7 @@ export function MnemonicEditor({
               {commands.map((command, commandIndex) => (
                 <div key={commandIndex} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                   {/* Command Header */}
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center">
                       <Terminal className="w-4 h-4 mr-2 text-gray-500" />
                       <span className="text-sm font-medium text-gray-700">
@@ -228,50 +285,106 @@ export function MnemonicEditor({
                     />
                   </div>
 
-                  {/* Inputs Section */}
+                  {/* Input Steps Section */}
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-medium text-gray-600">
-                        Saved Inputs (sent to stdin)
-                      </label>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">
+                          Inputs to Send (in order)
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Text is typed literally (no Enter). Add a separate Enter step if needed. Use Key for arrow/space/tab/backspace.
+                        </p>
+                      </div>
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
                         onClick={() => handleAddInput(commandIndex)}
-                        className="text-xs"
+                        className="text-sm"
                       >
                         <Plus className="w-3 h-3 mr-1" />
                         Add Input
                       </Button>
                     </div>
                     
-                    {(!command?.inputs || command.inputs.length === 0) ? (
-                      <div className="text-xs text-gray-500 italic py-2">
-                        No saved inputs - command will run without stdin
+                    {command.inputs.length === 0 ? (
+                      <div className="text-xs text-gray-500 italic py-3 text-center border border-dashed rounded">
+                        No input steps - command will run without any input
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {command.inputs.map((input, inputIndex) => (
-                          <div key={inputIndex} className="flex items-center space-x-2">
-                            <div className="text-xs text-gray-500 w-8">
-                              {inputIndex + 1}.
+                          <div key={inputIndex} className="bg-white border rounded-lg p-3">
+                            <div className="flex items-start gap-3">
+                              <div className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-medium">
+                                {inputIndex + 1}
+                              </div>
+                              
+                              <div className="flex-1 space-y-2">
+                                {/* Step Type Selector */}
+                                <div className="flex items-center gap-2">
+                                  {getInputStepIcon(input)}
+                                  <Select
+                                    value={input.type}
+                                    onValueChange={(value) => handleInputTypeChange(commandIndex, inputIndex, value)}
+                                  >
+                                    <SelectTrigger className="w-40">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {INPUT_TYPE_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  
+                                  <span className="text-xs text-gray-500">
+                                    {getInputStepDescription(input)}
+                                  </span>
+                                </div>
+
+                                {/* Step Value Input */}
+                                {input.type === "text" && (
+                                  <Input
+                                    placeholder="Enter text to type"
+                                    value={input.value}
+                                    onChange={(e) => handleTextValueChange(commandIndex, inputIndex, e.target.value)}
+                                    className="text-sm"
+                                  />
+                                )}
+
+                                {input.type === "key" && (
+                                  <Select
+                                    value={input.key}
+                                    onValueChange={(value) => handleKeyValueChange(commandIndex, inputIndex, value)}
+                                  >
+                                    <SelectTrigger className="w-48">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {KEY_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              </div>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleRemoveInput(commandIndex, inputIndex)}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
                             </div>
-                            <Input
-                              placeholder="Enter input value"
-                              value={input}
-                              onChange={(e) => handleInputChange(commandIndex, inputIndex, e.target.value)}
-                              className="text-sm flex-1"
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleRemoveInput(commandIndex, inputIndex)}
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
                           </div>
                         ))}
                       </div>

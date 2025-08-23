@@ -1,41 +1,98 @@
 import mongoose, { Schema, Document } from 'mongoose'
-
-export interface ICommand {
-  command: string
-  inputs?: string[]
-}
+import { InputStep, MnemonicCommand, isValidInputStep } from '@/types/mnemonic'
 
 export interface IMnemonic extends Document {
   _id: string
-  folderId: string
+  userId: string
+  folderId?: string | null
   name: string
-  commands: ICommand[]
+  commands: MnemonicCommand[]
   createdAt: Date
   updatedAt: Date
 }
 
-// Create a more flexible schema that doesn't enforce strict validation on commands
-const MnemonicSchema = new Schema({
-  folderId: {
+// Schema for InputStep
+const InputStepSchema = new Schema({
+  type: {
     type: String,
     required: true,
+    enum: ['text', 'enter', 'key']
+  },
+  value: {
+    type: String,
+    required: function(this: any) {
+      return this.type === 'text'
+    }
+  },
+  key: {
+    type: String,
+    required: function(this: any) {
+      return this.type === 'key'
+    },
+    enum: ['up', 'down', 'left', 'right', 'space', 'tab', 'backspace']
+  }
+}, { _id: false })
+
+// Custom validation for InputStep
+InputStepSchema.pre('validate', function(this: any) {
+  if (this.type === 'text' && !this.value) {
+    this.invalidate('value', 'Value is required for text type')
+  }
+  if (this.type === 'key' && !this.key) {
+    this.invalidate('key', 'Key is required for key type')
+  }
+  if (this.type === 'enter' && (this.value || this.key)) {
+    this.value = undefined
+    this.key = undefined
+  }
+})
+
+// Schema for MnemonicCommand
+const MnemonicCommandSchema = new Schema({
+  command: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  inputs: {
+    type: [InputStepSchema],
+    default: []
+  }
+}, { _id: false })
+
+// Main Mnemonic schema
+const MnemonicSchema = new Schema<IMnemonic>({
+  userId: {
+    type: String,
+    required: true,
+    ref: 'User',
+  },
+  folderId: {
+    type: String,
     ref: 'Folder',
+    default: null
   },
   name: {
     type: String,
     required: true,
+    trim: true
   },
   commands: {
-    type: Schema.Types.Mixed, // Completely flexible - allows any structure
+    type: [MnemonicCommandSchema],
     required: true,
+    validate: {
+      validator: function(commands: MnemonicCommand[]) {
+        return commands.length > 0
+      },
+      message: 'At least one command is required'
+    }
   },
 }, {
   timestamps: true,
-  strict: false, // Allow additional fields
 })
 
-// Create compound index for folderId and name to ensure unique mnemonic names per folder
-MnemonicSchema.index({ folderId: 1, name: 1 }, { unique: true })
+// Create compound index for userId and name to ensure unique mnemonic names per user
+MnemonicSchema.index({ userId: 1, name: 1 }, { unique: true })
 
 // Remove the existing model if it exists to avoid conflicts
 if (mongoose.models.Mnemonic) {

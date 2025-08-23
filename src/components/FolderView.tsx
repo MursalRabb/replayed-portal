@@ -4,8 +4,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MnemonicEditor } from "@/components/MnemonicEditor"
-import { Plus, Terminal, Edit2, Trash2, ArrowRight } from "lucide-react"
-import { migrateCommands, migrateMnemonic, type Command } from "@/lib/migrationHelpers"
+import { Plus, Terminal, Edit2, Trash2, Type, CornerDownLeft, Keyboard } from "lucide-react"
+import { MnemonicCommand, InputStep } from "@/types/mnemonic"
 
 interface Folder {
   _id: string
@@ -15,12 +15,12 @@ interface Folder {
   updatedAt: string
 }
 
-// Support both old and new mnemonic formats
 interface Mnemonic {
   _id: string
-  folderId: string
+  userId: string
+  folderId?: string | null
   name: string
-  commands: Command[] | string[] // Support both formats
+  commands: MnemonicCommand[]
   createdAt: string
   updatedAt: string
 }
@@ -85,9 +85,30 @@ export function FolderView({
     setEditingMnemonic(null)
   }
 
-  const getTotalInputs = (commands: Command[] | string[]) => {
-    const migratedCommands = migrateCommands(commands)
-    return migratedCommands.reduce((total, cmd) => total + (cmd.inputs?.length || 0), 0)
+  const getTotalInputSteps = (commands: MnemonicCommand[]) => {
+    return commands.reduce((total, cmd) => total + (cmd.inputs?.length || 0), 0)
+  }
+
+  const getInputStepIcon = (step: InputStep) => {
+    switch (step.type) {
+      case "text":
+        return <Type className="w-3 h-3 text-blue-500" />
+      case "enter":
+        return <CornerDownLeft className="w-3 h-3 text-green-500" />
+      case "key":
+        return <Keyboard className="w-3 h-3 text-purple-500" />
+    }
+  }
+
+  const getInputStepLabel = (step: InputStep) => {
+    switch (step.type) {
+      case "text":
+        return step.value.length > 10 ? `${step.value.substring(0, 10)}...` : step.value
+      case "enter":
+        return "↵"
+      case "key":
+        return step.key.toUpperCase()
+    }
   }
 
   return (
@@ -126,9 +147,7 @@ export function FolderView({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {mnemonics.map((mnemonic) => {
-            // Migrate commands to new format for display
-            const migratedCommands = migrateCommands(mnemonic.commands)
-            const totalInputs = getTotalInputs(mnemonic.commands)
+            const totalInputSteps = getTotalInputSteps(mnemonic.commands)
             
             return (
               <Card key={mnemonic._id} className="group hover:shadow-md transition-shadow">
@@ -153,46 +172,52 @@ export function FolderView({
                     </div>
                   </div>
                   <CardDescription>
-                    {migratedCommands.length} {migratedCommands.length === 1 ? "command" : "commands"}
-                    {totalInputs > 0 && (
+                    {mnemonic.commands.length} {mnemonic.commands.length === 1 ? "command" : "commands"}
+                    {totalInputSteps > 0 && (
                       <span className="ml-2 text-blue-600">
-                        • {totalInputs} saved {totalInputs === 1 ? "input" : "inputs"}
+                        • {totalInputSteps} input {totalInputSteps === 1 ? "step" : "steps"}
                       </span>
                     )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {migratedCommands.slice(0, 3).map((cmd, index) => (
+                    {mnemonic.commands.slice(0, 3).map((cmd, index) => (
                       <div key={index} className="bg-gray-100 rounded p-3">
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between mb-2">
                           <code className="text-sm text-gray-800 flex-1">{cmd.command}</code>
                           {cmd.inputs && cmd.inputs.length > 0 && (
                             <div className="ml-2 flex items-center text-xs text-blue-600">
-                              <ArrowRight className="w-3 h-3 mr-1" />
-                              {cmd.inputs.length} input{cmd.inputs.length !== 1 ? "s" : ""}
+                              <span>{cmd.inputs.length} step{cmd.inputs.length !== 1 ? "s" : ""}</span>
                             </div>
                           )}
                         </div>
+                        
                         {cmd.inputs && cmd.inputs.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {cmd.inputs.slice(0, 2).map((input, inputIndex) => (
-                              <div key={inputIndex} className="bg-blue-50 px-2 py-1 rounded text-xs">
-                                <span className="text-blue-600 font-mono">{input}</span>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {cmd.inputs.slice(0, 4).map((input, inputIndex) => (
+                              <div 
+                                key={inputIndex} 
+                                className="inline-flex items-center gap-1 bg-white px-2 py-1 rounded text-xs border"
+                              >
+                                {getInputStepIcon(input)}
+                                <span className="font-mono text-gray-700">
+                                  {getInputStepLabel(input)}
+                                </span>
                               </div>
                             ))}
-                            {cmd.inputs.length > 2 && (
-                              <div className="text-xs text-blue-500">
-                                +{cmd.inputs.length - 2} more input{cmd.inputs.length - 2 !== 1 ? "s" : ""}
+                            {cmd.inputs.length > 4 && (
+                              <div className="inline-flex items-center px-2 py-1 text-xs text-gray-500">
+                                +{cmd.inputs.length - 4} more
                               </div>
                             )}
                           </div>
                         )}
                       </div>
                     ))}
-                    {migratedCommands.length > 3 && (
+                    {mnemonic.commands.length > 3 && (
                       <div className="text-sm text-gray-500 text-center py-2">
-                        +{migratedCommands.length - 3} more commands
+                        +{mnemonic.commands.length - 3} more commands
                       </div>
                     )}
                   </div>

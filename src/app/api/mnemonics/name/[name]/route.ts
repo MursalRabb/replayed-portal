@@ -18,23 +18,10 @@ export async function GET(
   try {
     await connectMongoDB();
 
-    // First, find all folders belonging to the authenticated user
-    const userFolders = await Folder.find({ userId: authResult.user.email });
-    
-    if (userFolders.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "Mnemonic not found" },
-        { status: 404 }
-      );
-    }
-
-    // Extract folder IDs
-    const folderIds = userFolders.map(folder => folder._id);
-
-    // Find mnemonic with the given name in any of the user's folders
+    // Find mnemonic with the given name belonging to the authenticated user
     const mnemonic = await Mnemonic.findOne({
       name: params.name,
-      folderId: { $in: folderIds }
+      userId: authResult.user.email
     });
 
     if (!mnemonic) {
@@ -44,17 +31,13 @@ export async function GET(
       );
     }
 
-    const response = {
-      name: mnemonic.name,
-      commands: mnemonic.commands,
-    }
-
-    console.log(response, "response");
-
-    // Return mnemonic data
+    // Return mnemonic data in the new format
     return NextResponse.json({
       success: true,
-      data: response,
+      data: {
+        name: mnemonic.name,
+        commands: mnemonic.commands,
+      },
     });
 
   } catch (error) {
