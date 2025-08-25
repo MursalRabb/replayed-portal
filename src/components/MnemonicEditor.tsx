@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -18,8 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, X, Terminal, Type, CornerDownLeft, Keyboard } from "lucide-react"
+import { Plus, X, Terminal, Type, CornerDownLeft, Keyboard, FileText, Upload } from "lucide-react"
 import { InputStep, MnemonicCommand, INPUT_TYPE_OPTIONS, KEY_OPTIONS } from "@/types/mnemonic"
+import { validateImportJson, getExampleJson } from "@/lib/mnemonicImport"
 
 interface Folder {
   _id: string
@@ -44,7 +46,7 @@ interface MnemonicEditorProps {
   mnemonic: Mnemonic | null
   isOpen: boolean
   onClose: () => void
-  onSave: (mnemonic: any) => void
+  onSave: (mnemonic: Mnemonic) => void
 }
 
 export function MnemonicEditor({
@@ -57,6 +59,12 @@ export function MnemonicEditor({
   const [name, setName] = useState("")
   const [commands, setCommands] = useState<MnemonicCommand[]>([{ command: "", inputs: [] }])
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Import functionality state
+  const [importMode, setImportMode] = useState(false)
+  const [importJson, setImportJson] = useState("")
+  const [importError, setImportError] = useState<string | null>(null)
+  const [showExample, setShowExample] = useState(false)
 
   useEffect(() => {
     if (mnemonic) {
@@ -66,6 +74,11 @@ export function MnemonicEditor({
       setName("")
       setCommands([{ command: "", inputs: [] }])
     }
+    // Reset import state when mnemonic changes
+    setImportMode(false)
+    setImportJson("")
+    setImportError(null)
+    setShowExample(false)
   }, [mnemonic])
 
   const handleAddCommand = () => {
@@ -96,11 +109,7 @@ export function MnemonicEditor({
     setCommands(newCommands)
   }
 
-  const handleInputStepChange = (commandIndex: number, inputIndex: number, step: InputStep) => {
-    const newCommands = [...commands]
-    newCommands[commandIndex].inputs[inputIndex] = step
-    setCommands(newCommands)
-  }
+
 
   const handleInputTypeChange = (commandIndex: number, inputIndex: number, type: string) => {
     const newCommands = [...commands]
@@ -130,8 +139,47 @@ export function MnemonicEditor({
     const newCommands = [...commands]
     const step = newCommands[commandIndex].inputs[inputIndex]
     if (step.type === "key") {
-      newCommands[commandIndex].inputs[inputIndex] = { type: "key", key: key as any }
+      newCommands[commandIndex].inputs[inputIndex] = { 
+        type: "key", 
+        key: key as 'up' | 'down' | 'left' | 'right' | 'space' | 'tab' | 'backspace'
+      }
       setCommands(newCommands)
+    }
+  }
+
+  // Import functionality handlers
+  const handleImportJsonChange = (value: string) => {
+    setImportJson(value)
+    setImportError(null) // Clear error when user starts typing
+  }
+
+  const handleImportFromJson = () => {
+    const validation = validateImportJson(importJson)
+    
+    if (!validation.isValid) {
+      setImportError(validation.error || "Invalid JSON format")
+      return
+    }
+    
+    if (validation.commands) {
+      setCommands(validation.commands)
+      setImportMode(false)
+      setImportJson("")
+      setImportError(null)
+      setShowExample(false)
+    }
+  }
+
+  const handleToggleImportMode = () => {
+    if (importMode) {
+      // Cancel import mode
+      setImportMode(false)
+      setImportJson("")
+      setImportError(null)
+      setShowExample(false)
+    } else {
+      // Enter import mode
+      setImportMode(true)
     }
   }
 
@@ -181,6 +229,10 @@ export function MnemonicEditor({
   const handleClose = () => {
     setName("")
     setCommands([{ command: "", inputs: [] }])
+    setImportMode(false)
+    setImportJson("")
+    setImportError(null)
+    setShowExample(false)
     onClose()
   }
 
@@ -235,22 +287,111 @@ export function MnemonicEditor({
             />
           </div>
 
-          {/* Commands */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <label className="block text-sm font-medium text-gray-700">
-                Commands & Input Steps
-              </label>
+          {/* Import/Manual Toggle */}
+          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Creation Method:</span>
+            </div>
+            <div className="flex gap-2">
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
-                onClick={handleAddCommand}
+                variant={!importMode ? "default" : "outline"}
+                onClick={() => setImportMode(false)}
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Command
+                <Terminal className="w-4 h-4 mr-2" />
+                Manual
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={importMode ? "default" : "outline"}
+                onClick={handleToggleImportMode}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Import JSON
               </Button>
             </div>
+          </div>
+
+          {/* JSON Import Section */}
+          {importMode && (
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Import Commands from JSON
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowExample(!showExample)}
+                  >
+                    {showExample ? "Hide" : "Show"} Example
+                  </Button>
+                </div>
+                
+                {showExample && (
+                  <div className="mb-4 p-3 bg-gray-100 rounded-md border">
+                    <p className="text-xs text-gray-600 mb-2">Example JSON format:</p>
+                    <pre className="text-xs text-gray-800 whitespace-pre-wrap overflow-x-auto">
+                      {getExampleJson()}
+                    </pre>
+                  </div>
+                )}
+                
+                <Textarea
+                  className="h-40 font-mono text-sm resize-y"
+                  placeholder="Paste your JSON here..."
+                  value={importJson}
+                  onChange={(e) => handleImportJsonChange(e.target.value)}
+                />
+                
+                {importError && (
+                  <div className="text-red-600 text-sm mt-2 p-2 bg-red-50 rounded border border-red-200">
+                    {importError}
+                  </div>
+                )}
+                
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    type="button"
+                    onClick={handleImportFromJson}
+                    disabled={!importJson.trim()}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import Commands
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleToggleImportMode}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Manual Commands Section */}
+          {!importMode && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Commands & Input Steps
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddCommand}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Command
+                </Button>
+              </div>
             
             <div className="space-y-6">
               {commands.map((command, commandIndex) => (
@@ -393,7 +534,38 @@ export function MnemonicEditor({
                 </div>
               ))}
             </div>
-          </div>
+            </div>
+          )}
+
+          {/* Command Preview Section - Show current commands regardless of mode */}
+          {commands.length > 0 && commands.some(cmd => cmd.command.trim()) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Current Commands Preview
+              </label>
+              <div className="space-y-3">
+                {commands.filter(cmd => cmd.command.trim()).map((command, index) => (
+                  <div key={index} className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Terminal className="w-4 h-4 text-blue-600" />
+                      <span className="font-mono text-sm text-blue-800">{command.command}</span>
+                    </div>
+                    {command.inputs.length > 0 && (
+                      <div className="pl-6 space-y-1">
+                        <p className="text-xs text-blue-600 font-medium">Input steps:</p>
+                        {command.inputs.map((step, stepIndex) => (
+                          <div key={stepIndex} className="flex items-center gap-2 text-xs text-blue-700">
+                            {getInputStepIcon(step)}
+                            <span>{getInputStepDescription(step)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
