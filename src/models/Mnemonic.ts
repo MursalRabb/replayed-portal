@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose'
-import { InputStep, MnemonicCommand, isValidInputStep } from '@/types/mnemonic'
+import { MnemonicCommand } from '@/types/mnemonic'
+import { validateMnemonicName } from '@/lib/validation'
 
 export interface IMnemonic extends Document {
   _id: string
@@ -75,7 +76,17 @@ const MnemonicSchema = new Schema<IMnemonic>({
   name: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(name: string) {
+        const validation = validateMnemonicName(name)
+        return validation.isValid
+      },
+      message: function(props: any) {
+        const validation = validateMnemonicName(props.value)
+        return validation.error || 'Invalid mnemonic name'
+      }
+    }
   },
   commands: {
     type: [MnemonicCommandSchema],

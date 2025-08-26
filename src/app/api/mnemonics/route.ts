@@ -5,6 +5,7 @@ import Folder from '@/models/Folder'
 import { requireAuth } from '@/lib/session'
 import { hybridAuth, handleHybridAuthError } from '@/lib/hybridAuth'
 import { MnemonicCommand, isValidInputStep } from '@/types/mnemonic'
+import { validateMnemonicName } from '@/lib/validation'
 
 // GET /api/mnemonics?folderId=... - Get all mnemonics for a folder
 export async function GET(request: NextRequest) {
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
 }
 
 // Validation helper for MnemonicCommand structure
-function validateMnemonicCommands(commands: any): commands is MnemonicCommand[] {
+function validateMnemonicCommands(commands: unknown): commands is MnemonicCommand[] {
   if (!Array.isArray(commands)) {
     return false
   }
@@ -70,7 +71,7 @@ function validateMnemonicCommands(commands: any): commands is MnemonicCommand[] 
       if (!Array.isArray(cmd.inputs)) {
         return false
       }
-      if (!cmd.inputs.every((input: any) => isValidInputStep(input))) {
+      if (!cmd.inputs.every((input: unknown) => isValidInputStep(input))) {
         return false
       }
     }
@@ -94,6 +95,15 @@ export async function POST(request: NextRequest) {
     if (!name || !commands) {
       return NextResponse.json(
         { success: false, error: 'Name and commands are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate mnemonic name
+    const nameValidation = validateMnemonicName(name)
+    if (!nameValidation.isValid) {
+      return NextResponse.json(
+        { success: false, error: nameValidation.error },
         { status: 400 }
       )
     }
@@ -168,19 +178,19 @@ export async function POST(request: NextRequest) {
       source: authResult.source // Indicate which auth method was used
     }, { status: 201 })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating mnemonic:', error)
     
     // Handle validation errors more gracefully
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map((err: any) => err.message)
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
+      const validationErrors = Object.values((error as any).errors).map((err: any) => err.message)
       return NextResponse.json(
         { success: false, error: `Validation failed: ${validationErrors.join(', ')}` },
         { status: 400 }
       )
     }
     
-    if (error.code === 11000) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
       return NextResponse.json(
         { success: false, error: 'Mnemonic name already exists' },
         { status: 409 }

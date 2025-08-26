@@ -112,7 +112,7 @@ export function FolderView({
   }
 
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 flex flex-col p-6 pb-0 h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -145,7 +145,7 @@ export function FolderView({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 flex-grow max-h-fit pb-6 overflow-auto">
           {mnemonics.map((mnemonic) => {
             const totalInputSteps = getTotalInputSteps(mnemonic.commands)
             

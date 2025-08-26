@@ -157,7 +157,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-73px)]">
+      <div className="flex h-[calc(100vh-65px)]">
         {/* Sidebar */}
         <Sidebar
           folders={folders}

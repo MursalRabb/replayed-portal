@@ -22,6 +22,7 @@ import {
 import { Plus, X, Terminal, Type, CornerDownLeft, Keyboard, FileText, Upload } from "lucide-react"
 import { InputStep, MnemonicCommand, INPUT_TYPE_OPTIONS, KEY_OPTIONS } from "@/types/mnemonic"
 import { validateImportJson, getExampleJson } from "@/lib/mnemonicImport"
+import { validateMnemonicName } from "@/lib/validation"
 
 interface Folder {
   _id: string
@@ -59,6 +60,7 @@ export function MnemonicEditor({
   const [name, setName] = useState("")
   const [commands, setCommands] = useState<MnemonicCommand[]>([{ command: "", inputs: [] }])
   const [isLoading, setIsLoading] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
   
   // Import functionality state
   const [importMode, setImportMode] = useState(false)
@@ -79,7 +81,13 @@ export function MnemonicEditor({
     setImportJson("")
     setImportError(null)
     setShowExample(false)
+    setNameError(null)
   }, [mnemonic])
+
+  const handleNameChange = (value: string) => {
+    setName(value)
+    setNameError(null) // Clear error when user starts typing
+  }
 
   const handleAddCommand = () => {
     setCommands([...commands, { command: "", inputs: [] }])
@@ -184,8 +192,10 @@ export function MnemonicEditor({
   }
 
   const handleSave = async () => {
-    if (!name?.trim()) {
-      alert("Please enter a name for the mnemonic")
+    // Validate name
+    const nameValidation = validateMnemonicName(name)
+    if (!nameValidation.isValid) {
+      setNameError(nameValidation.error || "Invalid name")
       return
     }
 
@@ -233,6 +243,7 @@ export function MnemonicEditor({
     setImportJson("")
     setImportError(null)
     setShowExample(false)
+    setNameError(null)
     onClose()
   }
 
@@ -281,10 +292,19 @@ export function MnemonicEditor({
             </label>
             <Input
               id="name"
-              placeholder="Enter mnemonic name"
+              placeholder="Enter mnemonic name (lowercase letters, numbers, hyphens, underscores)"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
+              className={nameError ? "border-red-500" : ""}
             />
+            {nameError && (
+              <div className="text-red-600 text-sm mt-1">
+                {nameError}
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Must start with lowercase letter. Only lowercase letters, numbers, hyphens (-), and underscores (_) allowed. Max 50 characters.
+            </p>
           </div>
 
           {/* Import/Manual Toggle */}
@@ -574,7 +594,7 @@ export function MnemonicEditor({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!name?.trim() || commands?.every(cmd => !cmd?.command?.trim()) || isLoading}
+            disabled={!name?.trim() || commands?.every(cmd => !cmd?.command?.trim()) || isLoading || nameError !== null}
           >
             {isLoading ? "Saving..." : (mnemonic ? "Update" : "Create")}
           </Button>

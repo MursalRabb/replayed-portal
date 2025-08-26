@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import connectMongoDB from '@/lib/mongodb'
 import Mnemonic from '@/models/Mnemonic'
 import Folder from '@/models/Folder'
-import { requireAuth } from '@/lib/session'
+import mongoose from 'mongoose'
+
 import { hybridAuth, handleHybridAuthError } from '@/lib/hybridAuth'
 import { MnemonicCommand, isValidInputStep } from '@/types/mnemonic'
+import { validateMnemonicName } from '@/lib/validation'
 
 // Validation helper for MnemonicCommand structure
-function validateMnemonicCommands(commands: any): commands is MnemonicCommand[] {
+function validateMnemonicCommands(commands: unknown): commands is MnemonicCommand[] {
   if (!Array.isArray(commands)) {
     return false
   }
@@ -27,7 +29,7 @@ function validateMnemonicCommands(commands: any): commands is MnemonicCommand[] 
       if (!Array.isArray(cmd.inputs)) {
         return false
       }
-      if (!cmd.inputs.every((input: any) => isValidInputStep(input))) {
+      if (!cmd.inputs.every((input: unknown) => isValidInputStep(input))) {
         return false
       }
     }
@@ -54,6 +56,15 @@ export async function PUT(
     if (!name || !commands) {
       return NextResponse.json(
         { success: false, error: 'Name and commands are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate mnemonic name
+    const nameValidation = validateMnemonicName(name)
+    if (!nameValidation.isValid) {
+      return NextResponse.json(
+        { success: false, error: nameValidation.error },
         { status: 400 }
       )
     }
@@ -99,6 +110,22 @@ export async function PUT(
       }
     }
 
+    // Check for duplicate mnemonic names for this user (excluding current mnemonic)
+    if (name.trim() !== mnemonic.name) {
+      const existingMnemonic = await Mnemonic.findOne({
+        userId: authResult.user.email,
+        name: name.trim(),
+        _id: { $ne: new mongoose.Types.ObjectId(params.id) }
+      })
+
+      if (existingMnemonic) {
+        return NextResponse.json(
+          { success: false, error: 'Mnemonic name already exists' },
+          { status: 409 }
+        )
+      }
+    }
+
     // Filter out empty commands and normalize the data
     const cleanCommands: MnemonicCommand[] = commands
       .filter(cmd => cmd.command.trim().length > 0)
@@ -110,7 +137,7 @@ export async function PUT(
     // Use direct update to avoid potential schema conflicts
     const db = mnemonic.db
     const result = await db.collection('mnemonics').updateOne(
-      { _id: mnemonic._id },
+      { _id: new mongoose.Types.ObjectId(params.id) },
       { 
         $set: {
           name: name.trim(),
@@ -136,19 +163,19 @@ export async function PUT(
       source: authResult.source // Indicate which auth method was used
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating mnemonic:', error)
     
     // Handle validation errors more gracefully
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map((err: any) => err.message)
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
+      const validationErrors = Object.values((error as any).errors).map((err: any) => err.message)
       return NextResponse.json(
         { success: false, error: `Validation failed: ${validationErrors.join(', ')}` },
         { status: 400 }
       )
     }
     
-    if (error.code === 11000) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
       return NextResponse.json(
         { success: false, error: 'Mnemonic name already exists' },
         { status: 409 }
