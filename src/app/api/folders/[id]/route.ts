@@ -8,9 +8,12 @@ import { hybridAuth, handleHybridAuthError } from '@/lib/hybridAuth'
 // PUT /api/folders/[id] - Update a folder (supports both web portal and CLI)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params since it's now a Promise in Next.js 15
+    const { id } = await params
+    
     // Use hybrid authentication to support both web portal and CLI
     const authResult = await hybridAuth(request)
     
@@ -30,7 +33,7 @@ export async function PUT(
     await connectMongoDB()
 
     const folder = await Folder.findOne({ 
-      _id: params.id, 
+      _id: id, 
       userId: authResult.user.email 
     })
 
@@ -45,7 +48,7 @@ export async function PUT(
     const existingFolder = await Folder.findOne({
       userId: authResult.user.email,
       name: name.trim(),
-      _id: { $ne: params.id }
+      _id: { $ne: id }
     })
 
     if (existingFolder) {
@@ -63,10 +66,10 @@ export async function PUT(
       data: updatedFolder,
       source: authResult.source // Indicate which auth method was used
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating folder:', error)
-    
-    if (error.code === 11000) {
+    const errorObject = error as { code?: number }
+    if (errorObject.code === 11000) {
       return NextResponse.json(
         { success: false, error: 'Folder name already exists' },
         { status: 409 }
@@ -83,9 +86,12 @@ export async function PUT(
 // DELETE /api/folders/[id] - Delete a folder and all its mnemonics (supports both web portal and CLI)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params since it's now a Promise in Next.js 15
+    const { id } = await params
+    
     // Use hybrid authentication to support both web portal and CLI
     const authResult = await hybridAuth(request)
     
@@ -96,7 +102,7 @@ export async function DELETE(
     await connectMongoDB()
 
     const folder = await Folder.findOne({ 
-      _id: params.id, 
+      _id: id, 
       userId: authResult.user.email 
     })
 
@@ -108,10 +114,10 @@ export async function DELETE(
     }
 
     // Delete all mnemonics in this folder
-    const deletedMnemonics = await Mnemonic.deleteMany({ folderId: params.id })
+    const deletedMnemonics = await Mnemonic.deleteMany({ folderId: id })
     
     // Delete the folder
-    await Folder.deleteOne({ _id: params.id })
+    await Folder.deleteOne({ _id: id })
 
     return NextResponse.json({ 
       success: true, 

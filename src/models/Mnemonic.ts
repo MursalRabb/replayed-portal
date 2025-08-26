@@ -11,9 +11,15 @@ export interface IMnemonic extends Document {
   createdAt: Date
   updatedAt: Date
 }
+interface IInputStep {
+  type: 'text' | 'enter' | 'key'
+  value?: string
+  key?: string
+  invalidate: (field: string, message: string) => void
+}
 
 // Schema for InputStep
-const InputStepSchema = new Schema({
+const InputStepSchema: Schema<IInputStep> = new Schema({
   type: {
     type: String,
     required: true,
@@ -21,13 +27,13 @@ const InputStepSchema = new Schema({
   },
   value: {
     type: String,
-    required: function(this: any) {
+    required: function(this: IInputStep) {
       return this.type === 'text'
     }
   },
   key: {
     type: String,
-    required: function(this: any) {
+    required: function(this: IInputStep) {
       return this.type === 'key'
     },
     enum: ['up', 'down', 'left', 'right', 'space', 'tab', 'backspace']
@@ -35,7 +41,7 @@ const InputStepSchema = new Schema({
 }, { _id: false })
 
 // Custom validation for InputStep
-InputStepSchema.pre('validate', function(this: any) {
+InputStepSchema.pre('validate', function(this: IInputStep) {
   if (this.type === 'text' && !this.value) {
     this.invalidate('value', 'Value is required for text type')
   }
@@ -82,7 +88,7 @@ const MnemonicSchema = new Schema<IMnemonic>({
         const validation = validateMnemonicName(name)
         return validation.isValid
       },
-      message: function(props: any) {
+      message: function(props: { value: string }) {
         const validation = validateMnemonicName(props.value)
         return validation.error || 'Invalid mnemonic name'
       }

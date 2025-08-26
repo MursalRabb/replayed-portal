@@ -3,7 +3,10 @@
 export type InputStep =
   | { type: "text"; value: string }
   | { type: "enter" }
-  | { type: "key"; key: "up" | "down" | "left" | "right" | "space" | "tab" | "backspace" };
+  | {
+      type: "key";
+      key: "up" | "down" | "left" | "right" | "space" | "tab" | "backspace";
+    };
 
 export interface MnemonicCommand {
   command: string;
@@ -21,24 +24,33 @@ export interface Mnemonic {
 }
 
 // Type guards for InputStep validation
-export function isTextStep(step: any): step is { type: "text"; value: string } {
+export function isTextStep(
+  step: InputStep
+): step is { type: "text"; value: string } {
   return step && step.type === "text" && typeof step.value === "string";
 }
 
-export function isEnterStep(step: any): step is { type: "enter" } {
+export function isEnterStep(step: InputStep): step is { type: "enter" } {
   return step && step.type === "enter";
 }
 
-export function isKeyStep(step: any): step is { type: "key"; key: string } {
+export function isKeyStep(
+  step: InputStep
+): step is {
+  type: "key";
+  key: "up" | "down" | "left" | "right" | "space" | "tab" | "backspace";
+} {
   return (
     step &&
     step.type === "key" &&
     typeof step.key === "string" &&
-    ["up", "down", "left", "right", "space", "tab", "backspace"].includes(step.key)
+    ["up", "down", "left", "right", "space", "tab", "backspace"].includes(
+      step.key
+    )
   );
 }
 
-export function isValidInputStep(step: any): step is InputStep {
+export function isValidInputStep(step: InputStep): step is InputStep {
   return isTextStep(step) || isEnterStep(step) || isKeyStep(step);
 }
 

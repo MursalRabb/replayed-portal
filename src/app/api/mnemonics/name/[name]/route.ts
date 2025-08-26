@@ -7,8 +7,11 @@ import { verifyAuth, handleAuthError } from "@/lib/authMiddleware";
 // GET /api/mnemonics/name/[name] - Get mnemonic by name for authenticated user
 export async function GET(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
+  // Await params since it's now a Promise in Next.js 15
+  const { name } = await params
+  
   const authResult = await verifyAuth(request);
 
   if (!authResult.success) {
@@ -20,7 +23,7 @@ export async function GET(
 
     // Find mnemonic with the given name belonging to the authenticated user
     const mnemonic = await Mnemonic.findOne({
-      name: params.name,
+      name: name,
       userId: authResult.user.email
     });
 

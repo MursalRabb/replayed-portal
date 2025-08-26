@@ -1,10 +1,10 @@
-import NextAuth from "next-auth"
-import Google from "next-auth/providers/google"
-import { MongoDBAdapter } from "@auth/mongodb-adapter"
-import { MongoClient } from "mongodb"
+import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
+import { MongoDBAdapter } from "@auth/mongodb-adapter";
+import { MongoClient } from "mongodb";
 
-const client = new MongoClient(process.env.MONGODB_URI!)
-const clientPromise = Promise.resolve(client)
+const client = new MongoClient(process.env.MONGODB_URI!);
+const clientPromise = Promise.resolve(client);
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: MongoDBAdapter(clientPromise),
@@ -17,29 +17,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           prompt: "consent",
           access_type: "offline",
           response_type: "code",
-          scope: "openid email profile"
-        }
-      }
-    })
+          scope: "openid email profile",
+        },
+      },
+    }),
   ],
   callbacks: {
     async jwt({ token, account }) {
       if (account) {
-        token.refreshToken = account.refresh_token
+        token.refreshToken = account.refresh_token;
       }
-      return token
+      return token;
     },
     async session({ session, token }) {
       if (token.refreshToken) {
-        session.refreshToken = token.refreshToken as string
+        (session as unknown as { refreshToken: string }).refreshToken =
+          token.refreshToken as string;
       }
-      return session
-    }
+      return session;
+    },
   },
   session: {
     strategy: "jwt",
   },
   pages: {
     signIn: "/login",
-  }
-})
+  },
+});

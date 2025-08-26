@@ -243,7 +243,7 @@ export function TokenManager() {
           <DialogHeader>
             <DialogTitle>Token Created Successfully</DialogTitle>
             <DialogDescription>
-              Your new CLI authentication token has been created. Copy it now - you won't be able to see it again!
+              Your new CLI authentication token has been created. Copy it now - you won&apos;t be able to see it again!
             </DialogDescription>
           </DialogHeader>
           {newlyCreatedToken && (
@@ -273,7 +273,7 @@ export function TokenManager() {
               </div>
               <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
                 <p className="text-sm text-yellow-800">
-                  <strong>Important:</strong> Store this token securely. You won't be able to see it again after closing this dialog.
+                  <strong>Important:</strong> Store this token securely. You won&apos;t be able to see it again after closing this dialog.
                   Use this token in your CLI tool for authentication.
                 </p>
               </div>
@@ -284,7 +284,7 @@ export function TokenManager() {
               setShowTokenDialog(false)
               setNewlyCreatedToken(null)
             }}>
-              I've Saved the Token
+              I&apos;ve Saved the Token
             </Button>
           </DialogFooter>
         </DialogContent>

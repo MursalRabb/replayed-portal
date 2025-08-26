@@ -79,10 +79,11 @@ export async function POST(request: NextRequest) {
       data: savedFolder,
       source: authResult.source // Indicate which auth method was used
     }, { status: 201 })
-  } catch (error: any) {
+  } catch (error) {
+    const errorObject = error as { code?: number }
     console.error('Error creating folder:', error)
     
-    if (error.code === 11000) {
+    if (errorObject.code === 11000) {
       return NextResponse.json(
         { success: false, error: 'Folder name already exists' },
         { status: 409 }

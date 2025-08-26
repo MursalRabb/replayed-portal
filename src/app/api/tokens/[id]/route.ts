@@ -6,14 +6,17 @@ import { requireAuth } from '@/lib/session'
 // DELETE /api/tokens/[id] - Revoke a token
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params since it's now a Promise in Next.js 15
+    const { id } = await params
+    
     const session = await requireAuth()
     await connectMongoDB()
 
     const token = await Token.findOne({ 
-      _id: params.id, 
+      _id: id, 
       userId: session.user?.email 
     })
 
@@ -24,7 +27,7 @@ export async function DELETE(
       )
     }
 
-    await Token.deleteOne({ _id: params.id })
+    await Token.deleteOne({ _id: id })
 
     return NextResponse.json({ 
       success: true, 
@@ -42,9 +45,12 @@ export async function DELETE(
 // PUT /api/tokens/[id] - Update token name
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params since it's now a Promise in Next.js 15
+    const { id } = await params
+    
     const session = await requireAuth()
     const { name } = await request.json()
 
@@ -58,7 +64,7 @@ export async function PUT(
     await connectMongoDB()
 
     const token = await Token.findOne({ 
-      _id: params.id, 
+      _id: id, 
       userId: session.user?.email 
     })
 
@@ -73,7 +79,7 @@ export async function PUT(
     const existingToken = await Token.findOne({
       userId: session.user?.email,
       name: name.trim(),
-      _id: { $ne: params.id } // Exclude current token
+      _id: { $ne: id } // Exclude current token
     })
 
     if (existingToken) {

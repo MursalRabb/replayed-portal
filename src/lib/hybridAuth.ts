@@ -34,7 +34,7 @@ export async function hybridAuth(request: NextRequest): Promise<AuthResult | Aut
           id: session.user.email, // Using email as ID for consistency
           email: session.user.email,
           name: session.user.name || session.user.email,
-          image: session.user.image,
+          image: session.user.image!,
         },
         source: 'session'
       }
