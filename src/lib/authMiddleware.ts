@@ -35,7 +35,7 @@ export interface AuthError {
 export async function verifyAuth(request: NextRequest): Promise<AuthResult | AuthError> {
   try {
     const authorization = request.headers.get("authorization");
-    const token = extractTokenFromHeader(authorization);
+    const token = extractTokenFromHeader(authorization || undefined);
 
     if (!token) {
       return {
@@ -49,7 +49,7 @@ export async function verifyAuth(request: NextRequest): Promise<AuthResult | Aut
     let payload;
     try {
       payload = verifyToken(token);
-    } catch (error) {
+    } catch {
       return {
         success: false,
         error: "Invalid or expired token",
@@ -59,8 +59,12 @@ export async function verifyAuth(request: NextRequest): Promise<AuthResult | Aut
 
     await connectMongoDB();
 
-    // Find the token in database to ensure it hasn't been revoked
-    const tokenDoc = await Token.findOne({ userId: payload.userId });
+    // Find the specific token in database using tokenId to ensure it hasn't been revoked
+    // This handles cases where a user has multiple tokens
+    const tokenDoc = await Token.findOne({ 
+      userId: payload.userId,
+      tokenId: payload.tokenId 
+    });
 
     if (!tokenDoc) {
       return {

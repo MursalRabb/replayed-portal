@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import connectMongoDB from '@/lib/mongodb'
 import Token from '@/models/Token'
 import { requireAuth } from '@/lib/session'
-import { generateToken, hashToken } from '@/lib/tokens'
+import { generateToken, hashToken, verifyToken } from '@/lib/tokens'
 
 // GET /api/tokens - Get all tokens for the authenticated user
 export async function GET(request: NextRequest) {
@@ -58,13 +58,18 @@ export async function POST(request: NextRequest) {
       email: session.user?.email!,
     })
 
+    // Extract tokenId from the generated token for database storage
+    const payload = verifyToken(token)
+
     // Hash the token for storage
     const hashedToken = hashToken(token)
 
     // Save token to database
+    console.log('payload', payload)
     const tokenDoc = new Token({
       userId: session.user?.email,
       name: name.trim(),
+      tokenId: payload.tokenId,
       hashedToken,
     })
 

@@ -4,6 +4,7 @@ export interface IToken extends Document {
   _id: string
   userId: string
   name: string
+  tokenId: string // JWT tokenId for matching tokens
   hashedToken: string
   lastUsed?: Date
   createdAt: Date
@@ -19,6 +20,11 @@ const TokenSchema = new Schema<IToken>({
   name: {
     type: String,
     required: true,
+  },
+  tokenId: {
+    type: String,
+    required: true,
+    unique: true, // Ensure tokenId uniqueness
   },
   hashedToken: {
     type: String,

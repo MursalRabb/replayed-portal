@@ -1,121 +1,133 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useSession, signOut } from "next-auth/react"
-import { Sidebar } from "@/components/Sidebar"
-import { FolderView } from "@/components/FolderView"
-import { Button } from "@/components/ui/button"
-import { LogOut, User, Key } from "lucide-react"
-import Link from "next/link"
-import { MnemonicCommand } from "@/types/mnemonic"
+import { useState, useEffect } from "react";
+import { useSession, signOut } from "next-auth/react";
+import { Sidebar } from "@/components/Sidebar";
+import { FolderView } from "@/components/FolderView";
+import { Button } from "@/components/ui/button";
+import { LogOut, User, Key } from "lucide-react";
+import Link from "next/link";
+import { MnemonicCommand } from "@/types/mnemonic";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 interface Folder {
-  _id: string
-  name: string
-  userId: string
-  createdAt: string
-  updatedAt: string
+  _id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface Mnemonic {
-  _id: string
-  userId: string
-  folderId?: string | null
-  name: string
-  commands: MnemonicCommand[]
-  createdAt: string
-  updatedAt: string
+  _id: string;
+  userId: string;
+  folderId?: string | null;
+  name: string;
+  commands: MnemonicCommand[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function Dashboard() {
-  const { data: session } = useSession()
-  const [folders, setFolders] = useState<Folder[]>([])
-  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null)
-  const [mnemonics, setMnemonics] = useState<Mnemonic[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: session } = useSession();
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
+  const [mnemonics, setMnemonics] = useState<Mnemonic[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const router = useRouter()
 
   const fetchFolders = async () => {
     try {
-      const response = await fetch("/api/folders")
-      const data = await response.json()
+      const response = await fetch("/api/folders");
+      const data = await response.json();
       if (data.success) {
-        setFolders(data.data)
+        setFolders(data.data);
         // Select first folder by default
         if (data.data.length > 0 && !selectedFolder) {
-          setSelectedFolder(data.data[0])
+          setSelectedFolder(data.data[0]);
         }
       }
     } catch (error) {
-      console.error("Error fetching folders:", error)
+      console.error("Error fetching folders:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchMnemonics = async (folderId: string) => {
     try {
-      const response = await fetch(`/api/mnemonics?folderId=${folderId}`)
-      const data = await response.json()
+      const response = await fetch(`/api/mnemonics?folderId=${folderId}`);
+      const data = await response.json();
       if (data.success) {
-        setMnemonics(data.data)
+        setMnemonics(data.data);
       }
     } catch (error) {
-      console.error("Error fetching mnemonics:", error)
+      console.error("Error fetching mnemonics:", error);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchFolders()
-  }, [])
+    fetchFolders();
+  }, []);
 
   useEffect(() => {
     if (selectedFolder) {
-      fetchMnemonics(selectedFolder._id)
+      fetchMnemonics(selectedFolder._id);
     }
-  }, [selectedFolder])
+  }, [selectedFolder]);
 
   const handleFolderSelect = (folder: Folder) => {
-    setSelectedFolder(folder)
-  }
+    setSelectedFolder(folder);
+  };
 
   const handleFolderCreated = (newFolder: Folder) => {
-    setFolders([newFolder, ...folders])
-    setSelectedFolder(newFolder)
-  }
+    setFolders([newFolder, ...folders]);
+    setSelectedFolder(newFolder);
+  };
 
   const handleFolderUpdated = (updatedFolder: Folder) => {
-    setFolders(folders.map(f => f._id === updatedFolder._id ? updatedFolder : f))
+    setFolders(
+      folders.map((f) => (f._id === updatedFolder._id ? updatedFolder : f))
+    );
     if (selectedFolder?._id === updatedFolder._id) {
-      setSelectedFolder(updatedFolder)
+      setSelectedFolder(updatedFolder);
     }
-  }
+  };
 
   const handleFolderDeleted = (folderId: string) => {
-    setFolders(folders.filter(f => f._id !== folderId))
+    setFolders(folders.filter((f) => f._id !== folderId));
     if (selectedFolder?._id === folderId) {
-      const remainingFolders = folders.filter(f => f._id !== folderId)
-      setSelectedFolder(remainingFolders.length > 0 ? remainingFolders[0] : null)
+      const remainingFolders = folders.filter((f) => f._id !== folderId);
+      setSelectedFolder(
+        remainingFolders.length > 0 ? remainingFolders[0] : null
+      );
     }
-  }
+  };
 
   const handleMnemonicCreated = (newMnemonic: Mnemonic) => {
-    setMnemonics([newMnemonic, ...mnemonics])
-  }
+    setMnemonics([newMnemonic, ...mnemonics]);
+  };
 
   const handleMnemonicUpdated = (updatedMnemonic: Mnemonic) => {
-    setMnemonics(mnemonics.map(m => m._id === updatedMnemonic._id ? updatedMnemonic : m))
-  }
+    setMnemonics(
+      mnemonics.map((m) =>
+        m._id === updatedMnemonic._id ? updatedMnemonic : m
+      )
+    );
+  };
 
   const handleMnemonicDeleted = (mnemonicId: string) => {
-    setMnemonics(mnemonics.filter(m => m._id !== mnemonicId))
-  }
+    setMnemonics(mnemonics.filter((m) => m._id !== mnemonicId));
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
-    )
+    );
   }
 
   return (
@@ -123,7 +135,14 @@ export default function Dashboard() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Replay Portal</h1>
+          <Image
+            onClick={() => router.push("/")}
+            src="/images/cmdy.svg"
+            alt="Cmdy Logo"
+            height={50}
+            width={100}
+          />
+
           <div className="flex items-center space-x-4">
             <Link href="/dashboard/tokens">
               <Button variant="outline" size="sm">
@@ -193,5 +212,5 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  )
+  );
 }

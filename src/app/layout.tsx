@@ -1,4 +1,3 @@
-
 import type { Metadata } from "next";
 import "./globals.css";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -16,8 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Replay Portal - Command Macro Manager",
-  description: "Manage your command macros with ease",
+  title: "Cmdy Portal - Command Macro Manager",
+  description:
+    "Bundle multiple commands into a single command, easy-to-use tool",
 };
 
 export default async function RootLayout({
@@ -32,9 +32,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SessionProvider session={session}>
-          {children}
-        </SessionProvider>
+        <SessionProvider session={session}>{children}</SessionProvider>
       </body>
     </html>
   );

@@ -1,29 +1,41 @@
-"use client"
+"use client";
 
-import { signIn } from "next-auth/react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { signIn } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import Image from "next/image";
 
 export default function LoginPage() {
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/dashboard" })
-  }
+    signIn("google", { callbackUrl: "/dashboard" });
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Welcome to Replay Portal</CardTitle>
+          <Image
+            src="/images/cmdy.svg"
+            alt="Cmdy Logo"
+            className="mb-10 mx-auto"
+            height={50}
+            width={100}
+          />
+          <CardTitle className="text-2xl font-bold">
+            Welcome to Cmdy Portal
+          </CardTitle>
           <CardDescription>
-            Sign in to manage your command macros
+            Sign in to manage your command mnemonics
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button 
-            onClick={handleGoogleSignIn}
-            className="w-full"
-            size="lg"
-          >
+          <Button onClick={handleGoogleSignIn} className="w-full" size="lg">
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
@@ -47,5 +59,5 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
