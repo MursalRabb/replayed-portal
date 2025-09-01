@@ -22,7 +22,7 @@ export default function DashboardPage() {
     if ((session as unknown as { isNewUser: boolean })?.isNewUser && (session as unknown as { userEmail: unknown })?.userEmail) {
       // Use advanced matching for better attribution
       if (typeof window !== 'undefined' && window.rdt) {
-        window.rdt('init', 'a2_hlqdppnjx2op', {
+        window.rdt('track', 'SignUp', {
           email: (session as unknown as { userEmail: unknown }).userEmail as string
         })
       }
