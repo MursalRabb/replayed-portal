@@ -13,6 +13,7 @@ declare global {
       externalId?: string
       idfa?: string
       aaid?: string
+      conversion_id?: string
     }) => void
   }
 }

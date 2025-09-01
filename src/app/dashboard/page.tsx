@@ -25,6 +25,9 @@ export default function DashboardPage() {
         window.rdt('track', 'SignUp', {
           email: (session as unknown as { userEmail: unknown }).userEmail as string
         })
+        window.rdt('track', 'signup', {
+          conversion_id: (session as unknown as { userEmail: unknown }).userEmail as string
+      });
       }
     }
 
