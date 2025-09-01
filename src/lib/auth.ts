@@ -23,10 +23,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, user, isNewUser }) {
       if (account) {
         token.refreshToken = account.refresh_token;
       }
+
+      // Track new user signup with Reddit Pixel
+      if (isNewUser && user?.email) {
+        token.isNewUser = true;
+        token.userEmail = user.email;
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -34,6 +41,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session as unknown as { refreshToken: string }).refreshToken =
           token.refreshToken as string;
       }
+
+      // Pass new user flag to session for client-side tracking
+      if (token.isNewUser) {
+        (session as unknown as { isNewUser: boolean }).isNewUser = true;
+        (session as unknown as { userEmail: unknown }).userEmail =
+          token.userEmail;
+        // Reset the flag so it only triggers once
+        token.isNewUser = false;
+      }
+
       return session;
     },
   },
